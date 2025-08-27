@@ -8,64 +8,119 @@
 import Observation
 import Foundation
 
-
 @MainActor
 @Observable
 class PokemonListViewModel {
     var arrPokeList = [PokemonEntry]()
     var arrPokeDetail = [Pokemon]()
-    
+
+    // MARK: - ADDED: estado de UI
+    var errorMessage: String? = nil          // Mensaje legible para la vista en caso de error
+    var isLoading: Bool = false              // Bandera de carga para mostrar ProgressView
+
     init() {
-        
-        Task{
-            try await fetchList()
-            for entry in arrPokeList {
+        Task {
+            do {
+                try await fetchList()
+                for entry in arrPokeList {
                     try await fetchDetail(from: entry.url)
                 }
+            } catch {
+                // Si algo falla en la carga inicial, reflejarlo en la UI
+                self.errorMessage = self.mapError(error)
+            }
         }
     }
-    
+
+    // GET request to https://pokeapi.co/api/v2/pokemon?limit=20&offset=0
+    // (PokeAPI endpoint for listing Pokémon)
     func fetchList() async throws {
+        // ADDED: preparar estado
+        errorMessage = nil
+        isLoading = true
+        defer { isLoading = false }
+
         guard let url = URL(string: "https://pokeapi.co/api/v2/pokemon?limit=20&offset=0") else {
-            print("Invalid URL")
-            return
+            // ADDED: reportar error
+            errorMessage = "URL inválida para la lista."
+            throw URLError(.badURL)
         }
-        
-        let urlRequest = URLRequest(url : url)
-        
-        let (data, response) = try await URLSession.shared.data(for: urlRequest)
-        
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-            print("error")
-            return
+
+        let urlRequest = URLRequest(url: url)
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: urlRequest)
+
+            guard let http = response as? HTTPURLResponse else {
+                errorMessage = "Respuesta inválida del servidor."
+                throw URLError(.badServerResponse)
+            }
+            guard http.statusCode == 200 else {
+                errorMessage = "La API devolvió un error (\(http.statusCode))."
+                throw URLError(.badServerResponse)
+            }
+
+            let results = try JSONDecoder().decode(PokemonListResponse.self, from: data)
+            self.arrPokeList = results.results
+
+        } catch {
+            // ADDED: mapear y propagar
+            errorMessage = mapError(error)
+            throw error
         }
-        
-        let results = try JSONDecoder().decode(PokemonListResponse.self, from: data)
-        
-        self.arrPokeList = results.results
-        
     }
-    
-    func fetchDetail(from url : String) async throws{
+
+    // GET request to https://pokeapi.co/api/v2/pokemon/{id}/
+    // (PokeAPI endpoint for Pokémon details)
+    func fetchDetail(from url: String) async throws {
+        // ADDED: preparar estado
+        errorMessage = nil
+        isLoading = true
+        defer { isLoading = false }
+
         guard let url = URL(string: url) else {
-            print("Invalid URL")
-            return
+            errorMessage = "URL inválida para detalle."
+            throw URLError(.badURL)
         }
-        
-        let urlRequest = URLRequest(url : url)
 
-        let (data, response) = try await URLSession.shared.data(for: urlRequest)
+        let urlRequest = URLRequest(url: url)
 
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else {
-            print("error")
-            return
+        do {
+            let (data, response) = try await URLSession.shared.data(for: urlRequest)
+
+            guard let http = response as? HTTPURLResponse else {
+                errorMessage = "Respuesta inválida del servidor."
+                throw URLError(.badServerResponse)
+            }
+            guard http.statusCode == 200 else {
+                errorMessage = "La API devolvió un error (\(http.statusCode))."
+                throw URLError(.badServerResponse)
+            }
+
+            let result = try JSONDecoder().decode(Pokemon.self, from: data)
+            self.arrPokeDetail.append(result)
+            // (Opcional) Mantener orden estable por id
+            self.arrPokeDetail.sort { $0.id < $1.id }
+
+        } catch {
+            // ADDED: mapear y propagar
+            errorMessage = mapError(error)
+            throw error
         }
-        
-        let result = try JSONDecoder().decode(Pokemon.self, from: data)
-
-        self.arrPokeDetail.append(result)
-
     }
 
+    // MARK: - ADDED: helper para traducir errores a mensajes amigables
+    private func mapError(_ error: Error) -> String {
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .notConnectedToInternet:
+                return "No connection. Please try again."
+            case .timedOut:
+                return "La solicitud tardó demasiado. Intenta de nuevo."
+            default:
+                return "Error de red: \(urlError.localizedDescription)"
+            }
+        }
+        return "Ocurrió un error: \(error.localizedDescription)"
+    }
 }
-

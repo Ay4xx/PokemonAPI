@@ -13,7 +13,7 @@ struct DetailView: View {
     var body: some View {
         VStack(spacing: 12) {
             Text(pokemon.name.capitalized)
-                .font(.title2)
+                .font(.largeTitle)
                 .bold()
 
             if let urlString = pokemon.sprites.front_default,
@@ -34,7 +34,9 @@ struct DetailView: View {
             }
 
             Text("Base EXP: \(pokemon.base_experience)")
+                .font(.title)
             Text(String(format: "Height: %.1f m", pokemon.height))
+                .font(.title2)
         }
         .padding()
     }
