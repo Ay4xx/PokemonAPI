@@ -14,9 +14,8 @@ class PokemonListViewModel {
     var arrPokeList = [PokemonEntry]()
     var arrPokeDetail = [Pokemon]()
 
-    // MARK: - ADDED: estado de UI
-    var errorMessage: String? = nil          // Mensaje legible para la vista en caso de error
-    var isLoading: Bool = false              // Bandera de carga para mostrar ProgressView
+    var errorMessage: String? = nil
+    var isLoading: Bool = false
 
     init() {
         Task {
@@ -33,15 +32,16 @@ class PokemonListViewModel {
     }
 
     // GET request to https://pokeapi.co/api/v2/pokemon?limit=20&offset=0
+    // primeros 20
     // (PokeAPI endpoint for listing Pokémon)
     func fetchList() async throws {
-        // ADDED: preparar estado
+        // preparar estado
         errorMessage = nil
         isLoading = true
         defer { isLoading = false }
 
         guard let url = URL(string: "https://pokeapi.co/api/v2/pokemon?limit=20&offset=0") else {
-            // ADDED: reportar error
+            // reportar error
             errorMessage = "URL inválida para la lista."
             throw URLError(.badURL)
         }
@@ -64,7 +64,7 @@ class PokemonListViewModel {
             self.arrPokeList = results.results
 
         } catch {
-            // ADDED: mapear y propagar
+            // mapear y propagar
             errorMessage = mapError(error)
             throw error
         }
@@ -73,7 +73,7 @@ class PokemonListViewModel {
     // GET request to https://pokeapi.co/api/v2/pokemon/{id}/
     // (PokeAPI endpoint for Pokémon details)
     func fetchDetail(from url: String) async throws {
-        // ADDED: preparar estado
+        // preparar estado
         errorMessage = nil
         isLoading = true
         defer { isLoading = false }
@@ -99,17 +99,16 @@ class PokemonListViewModel {
 
             let result = try JSONDecoder().decode(Pokemon.self, from: data)
             self.arrPokeDetail.append(result)
-            // (Opcional) Mantener orden estable por id
             self.arrPokeDetail.sort { $0.id < $1.id }
 
         } catch {
-            // ADDED: mapear y propagar
+            //
             errorMessage = mapError(error)
             throw error
         }
     }
 
-    // MARK: - ADDED: helper para traducir errores a mensajes amigables
+    // helper para traducir errores a mensajes amigables
     private func mapError(_ error: Error) -> String {
         if let urlError = error as? URLError {
             switch urlError.code {
